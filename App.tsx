@@ -7,24 +7,61 @@ import { TipsView } from './components/TipsView';
 import { DietPlanView } from './components/DietPlanView';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import type { View, Ingredient, Recipe, StorageTip, MealPlan, UserProfile, GeneratedDietPlan } from './types';
-import { INITIAL_SHOPPING_LIST, INITIAL_MEAL_PLAN } from './constants';
+import { INITIAL_SHOPPING_LIST, createEmptyMealPlan } from './constants';
 import { generateRecipes, generateStorageTips, generateDietPlan } from './services/geminiService';
+
+const MEAL_PLAN_STORAGE_KEY = 'meu-plano-saudavel:meal-plan';
+
+const normalizeMealPlan = (plan?: MealPlan | null): MealPlan => {
+  const template = createEmptyMealPlan();
+  if (!plan) {
+    return template;
+  }
+
+  return Object.keys(template).reduce((acc, day) => {
+    acc[day] = {
+      ...template[day],
+      ...(plan[day] || {}),
+    };
+    return acc;
+  }, {} as MealPlan);
+};
 
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState<View>('planner');
   const [inventory, setInventory] = useState<Ingredient[]>(INITIAL_SHOPPING_LIST);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [tips, setTips] = useState<StorageTip[]>([]);
-  const [mealPlan, setMealPlan] = useState<MealPlan>(INITIAL_MEAL_PLAN);
+  const [mealPlan, setMealPlan] = useState<MealPlan>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem(MEAL_PLAN_STORAGE_KEY);
+      if (stored) {
+        try {
+          return normalizeMealPlan(JSON.parse(stored) as MealPlan);
+        } catch (error) {
+          console.warn('Não foi possível ler o plano salvo, iniciando vazio.', error);
+        }
+      }
+    }
+    return createEmptyMealPlan();
+  });
   const [dietPlan, setDietPlan] = useState<GeneratedDietPlan | null>(null);
   
   const [isLoading, setIsLoading] = useState<boolean>(true); // For initial data
   const [isGenerating, setIsGenerating] = useState<boolean>(false); // For on-demand generations
-  const [error, setError] = useState<string | null>(null);
+  // FIX: Separate error states for different parts of the UI to avoid error message leakage between views and fix the type error.
+  const [viewError, setViewError] = useState<string | null>(null);
+  const [dietPlanError, setDietPlanError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(MEAL_PLAN_STORAGE_KEY, JSON.stringify(mealPlan));
+    }
+  }, [mealPlan]);
 
   const fetchAiData = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
+    setViewError(null);
     try {
       const ingredientNames = inventory.map(i => i.name);
       const [generatedRecipes, generatedTips] = await Promise.all([
@@ -34,7 +71,7 @@ const App: React.FC = () => {
       setRecipes(generatedRecipes);
       setTips(generatedTips);
     } catch (e) {
-      setError('Falha ao buscar sugestões iniciais. Verifique sua conexão e a chave de API.');
+      setViewError('Falha ao buscar sugestões iniciais. Verifique sua conexão e a chave de API.');
       console.error(e);
     } finally {
       setIsLoading(false);
@@ -48,14 +85,14 @@ const App: React.FC = () => {
   
   const handleGenerateDietPlan = async (profiles: UserProfile[]) => {
     setIsGenerating(true);
-    setError(null);
+    setDietPlanError(null);
     setDietPlan(null);
     try {
         const ingredientNames = inventory.map(i => i.name);
         const plan = await generateDietPlan(profiles, ingredientNames);
         setDietPlan(plan);
     } catch (e: any) {
-        setError(e.message || 'Ocorreu um erro ao gerar o plano alimentar.');
+        setDietPlanError(e.message || 'Ocorreu um erro ao gerar o plano alimentar.');
         console.error(e);
     } finally {
         setIsGenerating(false);
@@ -65,14 +102,16 @@ const App: React.FC = () => {
   const handleApplyPlanToPlanner = () => {
     if (!dietPlan) return;
 
-    const newMealPlan: MealPlan = { ...INITIAL_MEAL_PLAN };
+    const newMealPlan: MealPlan = createEmptyMealPlan();
 
     for (const day in dietPlan) {
         if (newMealPlan[day]) {
             for (const mealTime in dietPlan[day]) {
                 if (newMealPlan[day][mealTime] !== undefined) {
                     const meals = dietPlan[day][mealTime];
-                    const combinedMeal = `P1: ${meals['Pessoa 1']}\nP2: ${meals['Pessoa 2']}`;
+                    const combinedMeal = Object.entries(meals)
+                      .map(([personName, meal]) => `${personName}: ${meal}`)
+                      .join('\n');
                     newMealPlan[day][mealTime] = combinedMeal;
                 }
             }
@@ -91,11 +130,32 @@ const App: React.FC = () => {
       },
     }));
   };
+
+  const handleDietPlanChange = (plan: GeneratedDietPlan) => {
+    setDietPlan(plan);
+  };
+
+  const handleAddRecipe = (recipe: Recipe) => {
+    setRecipes(prev => [...prev, recipe]);
+  };
+
+  const handleAddTip = (tip: StorageTip) => {
+    setTips(prev => [...prev, tip]);
+  };
   
   const renderView = () => {
     // Special handling for diet view as its loading is separate
     if (activeView === 'diet') {
-        return <DietPlanView onGenerate={handleGenerateDietPlan} plan={dietPlan} isGenerating={isGenerating} error={error} onApplyPlan={handleApplyPlanToPlanner}/>;
+        return (
+          <DietPlanView
+            onGenerate={handleGenerateDietPlan}
+            plan={dietPlan}
+            isGenerating={isGenerating}
+            error={dietPlanError}
+            onApplyPlan={handleApplyPlanToPlanner}
+            onPlanChange={handleDietPlanChange}
+          />
+        );
     }
 
     if (isLoading) {
@@ -110,8 +170,8 @@ const App: React.FC = () => {
     }
     
     // Use the main error state for other views
-    if (error && activeView !== 'diet') {
-       return <div className="text-center p-8 mt-10 text-red-500">{error}</div>
+    if (viewError) {
+       return <div className="text-center p-8 mt-10 text-red-500">{viewError}</div>
     }
 
     switch (activeView) {
@@ -120,9 +180,9 @@ const App: React.FC = () => {
       case 'inventory':
         return <InventoryView inventory={inventory} setInventory={setInventory} />;
       case 'recipes':
-        return <RecipesView recipes={recipes} />;
+        return <RecipesView recipes={recipes} onAddRecipe={handleAddRecipe} />;
       case 'tips':
-        return <TipsView tips={tips} />;
+        return <TipsView tips={tips} onAddTip={handleAddTip} />;
       default:
         return <PlannerView mealPlan={mealPlan} onUpdateMeal={handleUpdateMeal} />;
     }

@@ -1,5 +1,5 @@
 
-import type { Ingredient } from './types';
+import type { Ingredient, MealPlan, MealSchedule, MealSuggestion, MealTime, DailyMeals, Category } from './types';
 
 export const INITIAL_SHOPPING_LIST: Ingredient[] = [
   { id: '1', name: 'Peito de frango', quantity: '2 kg', category: 'Proteínas', checked: false },
@@ -34,13 +34,74 @@ export const INITIAL_SHOPPING_LIST: Ingredient[] = [
   { id: '30', name: 'Temperos (páprica, cúrcuma, etc)', quantity: 'a gosto', category: 'Temperos', checked: false },
 ];
 
-export const DAYS_OF_WEEK = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
-export const MEAL_TIMES = ['Café da Manhã', 'Almoço', 'Jantar'];
+export const CATEGORY_OPTIONS: Category[] = ['Proteínas', 'Carboidratos', 'Gorduras', 'Laticínios', 'Vegetais', 'Frutas', 'Temperos', 'Outros'];
 
-export const INITIAL_MEAL_PLAN = DAYS_OF_WEEK.reduce((acc, day) => {
-    acc[day] = MEAL_TIMES.reduce((meals, time) => {
-        meals[time] = '';
-        return meals;
-    }, {} as { [key: string]: string });
+export const DAYS_OF_WEEK = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+
+export const MEAL_TIME_CONFIG: ReadonlyArray<{
+  id: string;
+  label: MealTime;
+  time: string;
+  focus: string;
+  suggestion: string;
+}> = [
+  {
+    id: 'breakfast',
+    label: 'Café da Manhã',
+    time: '07:30',
+    focus: 'Proteína magra + fruta + fibra',
+    suggestion: 'Omelete de claras com espinafre, 1 fatia de pão integral e frutas vermelhas.',
+  },
+  {
+    id: 'mid-morning',
+    label: 'Lanche da Manhã',
+    time: '10:30',
+    focus: 'Fruta + oleaginosa',
+    suggestion: 'Maçã com 1 colher de pasta de amendoim ou mix de castanhas.',
+  },
+  {
+    id: 'lunch',
+    label: 'Almoço',
+    time: '13:00',
+    focus: 'Prato completo (½ verduras, ¼ proteína, ¼ carboidrato)',
+    suggestion: 'Peito de frango grelhado, arroz integral, feijão e salada verde com legumes assados.',
+  },
+  {
+    id: 'afternoon',
+    label: 'Lanche da Tarde',
+    time: '16:30',
+    focus: 'Proteína leve + fruta',
+    suggestion: 'Iogurte natural com aveia, chia e pedaços de mamão.',
+  },
+  {
+    id: 'dinner',
+    label: 'Jantar',
+    time: '19:30',
+    focus: 'Proteína leve + vegetais cozidos',
+    suggestion: 'Tilápia assada com purê de abóbora cabotiá e brócolis no vapor.',
+  },
+] as const;
+
+export const MEAL_TIMES: MealTime[] = MEAL_TIME_CONFIG.map(slot => slot.label);
+
+export const MEAL_TIME_SCHEDULE: MealSchedule = MEAL_TIME_CONFIG.reduce((acc, slot) => {
+  acc[slot.label] = slot.time;
+  return acc;
+}, {} as MealSchedule);
+
+export const MEAL_TIME_SUGGESTIONS: MealSuggestion = MEAL_TIME_CONFIG.reduce((acc, slot) => {
+  acc[slot.label] = slot.suggestion;
+  return acc;
+}, {} as MealSuggestion);
+
+export const createEmptyMealPlan = (): MealPlan =>
+  DAYS_OF_WEEK.reduce((acc, day) => {
+    const mealsForDay = MEAL_TIMES.reduce((meals, time) => {
+      meals[time] = '';
+      return meals;
+    }, {} as DailyMeals);
+    acc[day] = mealsForDay;
     return acc;
-}, {} as { [key: string]: { [key: string]: string } });
+  }, {} as MealPlan);
+
+export const INITIAL_MEAL_PLAN = createEmptyMealPlan();

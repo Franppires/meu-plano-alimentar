@@ -2,19 +2,27 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# Meu Plano Saudável
 
-This contains everything you need to run your app locally.
+Planeje a semana completa com café da manhã, lanches intermediários, almoço e jantar. Controle o inventário, consulte receitas e dicas prontas e gere cardápios personalizados com IA quando quiser.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1QmuCv9txbGO26vsC8Swky83ur2C1Qwur
+## Funcionalidades
 
-## Run Locally
+- Planejador com 5 refeições por dia, horários sugeridos e campos editáveis que ficam salvos no navegador.
+- Gerador de plano alimentar: preencha os perfis, clique em “Gerar Plano Alimentar” e aplique o resultado direto no planejador (você pode ajustar depois).
+- Inventário organizado por categorias com lista de compras interativa.
+- Receitas e dicas de armazenamento com conteúdo pronto e geração dinâmica quando a IA está configurada.
 
-**Prerequisites:**  Node.js
+## Executando localmente
 
+**Pré-requisitos:** Node.js 18+
 
-1. Install dependencies:
+1. Instale as dependências  
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. (Opcional, porém necessário para planos criados pela IA) Crie o arquivo `.env.local` e informe sua chave:
+   ```
+   VITE_GEMINI_API_KEY=coloque_sua_chave_aqui
+   ```
+   Sem a chave, o app continua funcionando com conteúdos padrão de receitas, dicas e cardápio exemplo.
+3. Inicie o servidor de desenvolvimento  
    `npm run dev`

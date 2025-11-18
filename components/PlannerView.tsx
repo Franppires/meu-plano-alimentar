@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { DAYS_OF_WEEK, MEAL_TIMES } from '../constants';
+import { DAYS_OF_WEEK, MEAL_TIME_CONFIG, MEAL_TIME_SUGGESTIONS } from '../constants';
 import type { MealPlan } from '../types';
 import { EditableMealCard } from './EditableMealCard';
 
@@ -10,37 +10,72 @@ interface PlannerViewProps {
 }
 
 export const PlannerView: React.FC<PlannerViewProps> = ({ mealPlan, onUpdateMeal }) => {
-  return (
-    <div className="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
+  const renderDesktopTable = () => (
+    <div className="hidden md:block">
       <div className="overflow-x-auto">
-        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-1 min-w-[700px] md:min-w-full">
-          {/* Header for meal times */}
-          <div className="hidden lg:block"></div>
-          {MEAL_TIMES.map(time => (
-            <div key={time} className="text-center font-bold text-green-700 p-2 col-span-1 lg:col-span-1 hidden md:block">{time}</div>
-          ))}
-          {/* Mobile headers inside grid */}
-          <div className="md:hidden"></div>
-          <div className="text-center font-bold text-green-700 p-2 md:hidden">Café da Manhã</div>
-          <div className="text-center font-bold text-green-700 p-2 md:hidden">Almoço</div>
-          <div className="text-center font-bold text-green-700 p-2 md:hidden">Jantar</div>
-
+        <div className="space-y-2 min-w-[960px]">
+          <div className="grid gap-2 grid-cols-[140px_repeat(5,minmax(0,1fr))]">
+            <div aria-hidden="true" />
+            {MEAL_TIME_CONFIG.map(slot => (
+              <div key={slot.id} className="rounded-lg bg-green-600 text-white text-center p-3">
+                <p className="text-base font-semibold">{slot.label}</p>
+                <p className="text-sm text-green-100 font-medium">{slot.time}</p>
+              </div>
+            ))}
+          </div>
           {DAYS_OF_WEEK.map(day => (
-            <React.Fragment key={day}>
-              <div className="bg-green-100 text-green-800 font-semibold flex items-center justify-center p-3 rounded-lg text-center">{day}</div>
-              {MEAL_TIMES.map(time => (
+            <div key={day} className="grid gap-2 grid-cols-[140px_repeat(5,minmax(0,1fr))]">
+              <div className="bg-green-100 text-green-800 font-semibold flex items-center justify-center rounded-lg p-3">
+                {day}
+              </div>
+              {MEAL_TIME_CONFIG.map(slot => (
                 <EditableMealCard
-                  key={`${day}-${time}`}
+                  key={`${day}-${slot.id}-desktop`}
                   day={day}
-                  mealTime={time}
-                  meal={mealPlan[day]?.[time] || ''}
+                  mealTime={slot.label}
+                  meal={mealPlan[day]?.[slot.label] || ''}
+                  placeholder={MEAL_TIME_SUGGESTIONS[slot.label]}
                   onUpdateMeal={onUpdateMeal}
                 />
               ))}
-            </React.Fragment>
+            </div>
           ))}
         </div>
       </div>
+    </div>
+  );
+
+  const renderMobileList = () => (
+    <div className="md:hidden space-y-4">
+      {DAYS_OF_WEEK.map(day => (
+        <div key={`${day}-mobile`} className="border border-green-100 rounded-xl overflow-hidden shadow-sm">
+          <div className="bg-green-100 text-green-800 font-semibold px-4 py-3">{day}</div>
+          <div className="space-y-1 p-4">
+            {MEAL_TIME_CONFIG.map(slot => (
+              <div key={`${day}-${slot.id}-mobile`} className="space-y-2">
+                <div className="flex items-center justify-between text-sm font-semibold text-green-700">
+                  <span>{slot.label}</span>
+                  <span className="text-gray-500">{slot.time}</span>
+                </div>
+                <EditableMealCard
+                  day={day}
+                  mealTime={slot.label}
+                  meal={mealPlan[day]?.[slot.label] || ''}
+                  placeholder={MEAL_TIME_SUGGESTIONS[slot.label]}
+                  onUpdateMeal={onUpdateMeal}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
+      {renderDesktopTable()}
+      {renderMobileList()}
     </div>
   );
 };

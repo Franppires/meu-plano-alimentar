@@ -1,13 +1,13 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { Recipe, StorageTip, UserProfile, GeneratedDietPlan } from '../types';
-import { DAYS_OF_WEEK, MEAL_TIMES } from "../constants";
+import { DAYS_OF_WEEK, MEAL_TIMES, MEAL_TIME_CONFIG } from "../constants";
+import { FALLBACK_RECIPES, FALLBACK_TIPS, buildFallbackDietPlan } from "../sampleData";
 
-const API_KEY = process.env.API_KEY;
-if (!API_KEY) {
-    throw new Error("API_KEY environment variable not set");
-}
+const apiKey =
+  import.meta.env?.VITE_GEMINI_API_KEY ||
+  (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY ?? process.env?.API_KEY : undefined);
 
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 const recipeSchema = {
   type: Type.ARRAY,
@@ -52,31 +52,12 @@ const storageTipSchema = {
   },
 };
 
-const dietPlanSchema = {
-    type: Type.OBJECT,
-    properties: DAYS_OF_WEEK.reduce((acc, day) => {
-        acc[day] = {
-            type: Type.OBJECT,
-            properties: MEAL_TIMES.reduce((mealAcc, mealTime) => {
-                mealAcc[mealTime] = {
-                    type: Type.OBJECT,
-                    properties: {
-                        'Pessoa 1': { type: Type.STRING, description: `Sugestão de refeição para a Pessoa 1 no ${mealTime} de ${day}.` },
-                        'Pessoa 2': { type: Type.STRING, description: `Sugestão de refeição para a Pessoa 2 no ${mealTime} de ${day}.` }
-                    },
-                    required: ['Pessoa 1', 'Pessoa 2']
-                };
-                return mealAcc;
-            }, {} as Record<string, any>),
-            required: MEAL_TIMES
-        };
-        return acc;
-    }, {} as Record<string, any>),
-    required: DAYS_OF_WEEK
-};
-
-
 export const generateRecipes = async (ingredients: string[]): Promise<Recipe[]> => {
+  if (!ai) {
+    console.warn("Gemini API key não encontrada. Usando receitas padrão.");
+    return FALLBACK_RECIPES;
+  }
+
   try {
     const prompt = `Com base nos seguintes ingredientes: ${ingredients.join(', ')}, gere 5 ideias de receitas saudáveis e simples, adequadas para marmitas e planejamento semanal. Formate a resposta como um JSON.`;
     
@@ -89,16 +70,21 @@ export const generateRecipes = async (ingredients: string[]): Promise<Recipe[]> 
       },
     });
 
-    const jsonText = response.text.trim();
+    const jsonText = response.text().trim();
     const recipes = JSON.parse(jsonText);
     return recipes as Recipe[];
   } catch (error) {
     console.error("Error generating recipes:", error);
-    return [];
+    return FALLBACK_RECIPES;
   }
 };
 
 export const generateStorageTips = async (ingredients: string[]): Promise<StorageTip[]> => {
+  if (!ai) {
+    console.warn("Gemini API key não encontrada. Usando dicas padrão.");
+    return FALLBACK_TIPS;
+  }
+
   try {
     const prompt = `Para os seguintes alimentos: ${ingredients.join(', ')}, forneça dicas ideais de armazenamento para maximizar a frescura e facilitar o preparo de refeições durante a semana. Inclua dicas sobre porcionamento. Formate a resposta como um JSON.`;
     
@@ -111,29 +97,69 @@ export const generateStorageTips = async (ingredients: string[]): Promise<Storag
       },
     });
 
-    const jsonText = response.text.trim();
+    const jsonText = response.text().trim();
     const tips = JSON.parse(jsonText);
     return tips as StorageTip[];
   } catch (error) {
     console.error("Error generating storage tips:", error);
-    return [];
+    return FALLBACK_TIPS;
   }
 };
 
 export const generateDietPlan = async (profiles: UserProfile[], ingredients: string[]): Promise<GeneratedDietPlan> => {
+  if (!ai) {
+    console.warn("Gemini API key não encontrada. Usando plano alimentar padrão.");
+    return buildFallbackDietPlan(profiles);
+  }
+
   try {
-    const profileDescriptions = profiles.map((p, index) => 
-      `Pessoa ${index + 1}: ${p.gender} de ${p.age} anos, com ${p.weight} kg e ${p.height} cm de altura.`
+    const personProperties = profiles.reduce((acc, profile) => {
+        if (profile.name) {
+            acc[profile.name] = { type: Type.STRING, description: `Sugestão de refeição para ${profile.name}.` };
+        }
+        return acc;
+    }, {} as Record<string, any>);
+
+    const personNames = profiles.map(p => p.name).filter(Boolean);
+
+    const dynamicDietPlanSchema = {
+        type: Type.OBJECT,
+        properties: DAYS_OF_WEEK.reduce((acc, day) => {
+            acc[day] = {
+                type: Type.OBJECT,
+                properties: MEAL_TIMES.reduce((mealAcc, mealTime) => {
+                    mealAcc[mealTime] = {
+                        type: Type.OBJECT,
+                        properties: personProperties,
+                        required: personNames
+                    };
+                    return mealAcc;
+                }, {} as Record<string, any>),
+                required: MEAL_TIMES
+            };
+            return acc;
+        }, {} as Record<string, any>),
+        required: DAYS_OF_WEEK
+    };
+    
+    const profileDescriptions = profiles.map(p => 
+      `${p.name}: ${p.gender} de ${p.age} anos, com ${p.weight} kg e ${p.height} cm de altura.`
     ).join(' ');
+
+    const scheduleText = MEAL_TIME_CONFIG.map(slot => `${slot.label} às ${slot.time}`).join(', ');
 
     const prompt = `
       Crie um plano alimentar semanal detalhado e saudável em formato JSON para as seguintes pessoas, com o objetivo de emagrecimento:
       ${profileDescriptions}
 
-      Utilize principalmente os seguintes ingredientes da lista de compras: ${ingredients.join(', ')}.
+      Os nomes das pessoas são ${personNames.join(' e ')}. Use estes nomes como chaves no JSON de resposta para cada refeição.
 
-      O plano deve incluir sugestões para café da manhã, almoço e jantar para cada dia da semana (Segunda a Domingo) para cada pessoa.
-      Seja específico nas porções e preparações. O plano deve ser prático para quem prepara marmitas.
+      Utilize EXCLUSIVAMENTE os ingredientes disponíveis nesta lista de compras (não invente novos itens): ${ingredients.join(', ')}.
+      Se precisar de variações, reutilize as mesmas bases (por exemplo, "frango desfiado" conta como usar "peito de frango").
+      Caso realmente necessite de algo que não esteja na lista, descreva a substituição usando ingredientes existentes (ex.: "use brócolis no lugar de couve-flor").
+
+      O plano deve incluir sugestões para café da manhã, lanche da manhã, almoço, lanche da tarde e jantar para cada dia da semana (Segunda a Domingo) para cada pessoa.
+      Considere os horários sugeridos: ${scheduleText}. As sugestões devem ser práticas para quem prepara marmitas e já mencionar porções claras (gramas, unidades ou xícaras).
       Responda APENAS com o JSON.
     `;
 
@@ -142,15 +168,15 @@ export const generateDietPlan = async (profiles: UserProfile[], ingredients: str
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        responseSchema: dietPlanSchema,
+        responseSchema: dynamicDietPlanSchema,
       },
     });
     
-    const jsonText = response.text.trim();
+    const jsonText = response.text().trim();
     const plan = JSON.parse(jsonText);
     return plan as GeneratedDietPlan;
   } catch (error) {
     console.error("Error generating diet plan:", error);
-    throw new Error("Não foi possível gerar o plano alimentar. Tente novamente.");
+    return buildFallbackDietPlan(profiles);
   }
 };

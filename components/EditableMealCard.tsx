@@ -6,9 +6,10 @@ interface EditableMealCardProps {
   mealTime: string;
   meal: string;
   onUpdateMeal: (day: string, mealTime: string, value: string) => void;
+  placeholder?: string;
 }
 
-export const EditableMealCard: React.FC<EditableMealCardProps> = ({ day, mealTime, meal, onUpdateMeal }) => {
+export const EditableMealCard: React.FC<EditableMealCardProps> = ({ day, mealTime, meal, onUpdateMeal, placeholder }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(meal);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -58,11 +59,11 @@ export const EditableMealCard: React.FC<EditableMealCardProps> = ({ day, mealTim
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           className="w-full h-full bg-transparent resize-none border-none focus:ring-0 p-0 text-center text-sm text-gray-700"
-          placeholder="Adicionar refeição..."
+          placeholder={placeholder || 'Adicionar refeição...'}
         />
       ) : (
-        <p className={`text-sm text-center ${text ? 'text-gray-700' : 'text-gray-400'}`}>
-          {text || '+ Adicionar'}
+        <p className={`text-sm text-center whitespace-pre-line ${text ? 'text-gray-700' : 'text-gray-400'}`}>
+          {text || placeholder || '+ Adicionar'}
         </p>
       )}
     </div>
