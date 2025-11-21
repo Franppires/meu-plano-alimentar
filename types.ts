@@ -15,6 +15,7 @@ export type MealSchedule = Record<MealTime, string>;
 export type MealSuggestion = Record<MealTime, string>;
 
 export interface Recipe {
+  id: string;
   recipeName: string;
   ingredients: string[];
   steps: string;

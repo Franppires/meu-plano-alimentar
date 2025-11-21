@@ -54,54 +54,76 @@ const storageTipSchema = {
 
 export const generateRecipes = async (ingredients: string[]): Promise<Recipe[]> => {
   if (!ai) {
-    console.warn("Gemini API key não encontrada. Usando receitas padrão.");
+    console.warn("⚠️ Gemini API key não encontrada. Usando receitas padrão.");
     return FALLBACK_RECIPES;
   }
 
   try {
+    console.log('📞 Chamando Gemini para gerar receitas...');
     const prompt = `Com base nos seguintes ingredientes: ${ingredients.join(', ')}, gere 5 ideias de receitas saudáveis e simples, adequadas para marmitas e planejamento semanal. Formate a resposta como um JSON.`;
     
-    const response = await ai.models.generateContent({
+    // Adicionar timeout de 30 segundos
+    const timeoutPromise = new Promise<Recipe[]>((_, reject) => {
+      setTimeout(() => reject(new Error('Timeout: Gemini API demorou mais de 30 segundos')), 30000);
+    });
+    
+    const apiPromise = ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: recipeSchema,
       },
+    }).then(response => {
+      const jsonText = response.text().trim();
+      const recipes = JSON.parse(jsonText);
+      return recipes as Recipe[];
     });
 
-    const jsonText = response.text().trim();
-    const recipes = JSON.parse(jsonText);
-    return recipes as Recipe[];
-  } catch (error) {
-    console.error("Error generating recipes:", error);
+    const recipes = await Promise.race([apiPromise, timeoutPromise]);
+    console.log('✅ Receitas geradas com sucesso:', recipes.length);
+    return recipes;
+  } catch (error: any) {
+    console.error("❌ Erro ao gerar receitas:", error?.message || error);
+    console.warn("📦 Usando receitas padrão como fallback");
     return FALLBACK_RECIPES;
   }
 };
 
 export const generateStorageTips = async (ingredients: string[]): Promise<StorageTip[]> => {
   if (!ai) {
-    console.warn("Gemini API key não encontrada. Usando dicas padrão.");
+    console.warn("⚠️ Gemini API key não encontrada. Usando dicas padrão.");
     return FALLBACK_TIPS;
   }
 
   try {
+    console.log('📞 Chamando Gemini para gerar dicas de armazenamento...');
     const prompt = `Para os seguintes alimentos: ${ingredients.join(', ')}, forneça dicas ideais de armazenamento para maximizar a frescura e facilitar o preparo de refeições durante a semana. Inclua dicas sobre porcionamento. Formate a resposta como um JSON.`;
     
-    const response = await ai.models.generateContent({
+    // Adicionar timeout de 30 segundos
+    const timeoutPromise = new Promise<StorageTip[]>((_, reject) => {
+      setTimeout(() => reject(new Error('Timeout: Gemini API demorou mais de 30 segundos')), 30000);
+    });
+    
+    const apiPromise = ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: storageTipSchema,
       },
+    }).then(response => {
+      const jsonText = response.text().trim();
+      const tips = JSON.parse(jsonText);
+      return tips as StorageTip[];
     });
 
-    const jsonText = response.text().trim();
-    const tips = JSON.parse(jsonText);
-    return tips as StorageTip[];
-  } catch (error) {
-    console.error("Error generating storage tips:", error);
+    const tips = await Promise.race([apiPromise, timeoutPromise]);
+    console.log('✅ Dicas geradas com sucesso:', tips.length);
+    return tips;
+  } catch (error: any) {
+    console.error("❌ Erro ao gerar dicas:", error?.message || error);
+    console.warn("📦 Usando dicas padrão como fallback");
     return FALLBACK_TIPS;
   }
 };

@@ -11,7 +11,13 @@ interface InventoryViewProps {
 
 export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, setInventory }) => {
   const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [newItem, setNewItem] = useState<{ name: string; quantity: string; category: Category }>({
+    name: '',
+    quantity: '',
+    category: CATEGORY_OPTIONS[0],
+  });
+  const [editItem, setEditItem] = useState<{ name: string; quantity: string; category: Category }>({
     name: '',
     quantity: '',
     category: CATEGORY_OPTIONS[0],
@@ -38,6 +44,40 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, setInve
     setInventory(prev => [...prev, newIngredient]);
     setNewItem({ name: '', quantity: '', category: CATEGORY_OPTIONS[0] });
     setIsAdding(false);
+  };
+
+  const handleStartEdit = (item: Ingredient) => {
+    setEditingId(item.id);
+    setEditItem({
+      name: item.name,
+      quantity: item.quantity,
+      category: item.category,
+    });
+  };
+
+  const handleSaveEdit = (e: React.FormEvent, id: string) => {
+    e.preventDefault();
+    if (!editItem.name || !editItem.quantity) return;
+    setInventory(
+      inventory.map(item =>
+        item.id === id
+          ? { ...item, name: editItem.name, quantity: editItem.quantity, category: editItem.category }
+          : item
+      )
+    );
+    setEditingId(null);
+    setEditItem({ name: '', quantity: '', category: CATEGORY_OPTIONS[0] });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditItem({ name: '', quantity: '', category: CATEGORY_OPTIONS[0] });
+  };
+
+  const handleDeleteItem = (id: string) => {
+    if (window.confirm('Tem certeza que deseja remover este item?')) {
+      setInventory(inventory.filter(item => item.id !== id));
+    }
   };
 
   const groupedInventory = inventory.reduce((acc: Record<Category, Ingredient[]>, item) => {
@@ -110,20 +150,85 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, setInve
             <h3 className="font-semibold text-lg text-gray-800 border-b-2 border-green-200 pb-2 mb-3">{category}</h3>
             <ul className="space-y-2">
               {groupedInventory[category].map(item => (
-                <li key={item.id} className="flex items-center">
+                <li key={item.id} className="flex items-start gap-2 p-2 rounded hover:bg-gray-100 transition-colors">
                   <input
                     type="checkbox"
                     id={`item-${item.id}`}
                     checked={item.checked}
                     onChange={() => toggleCheck(item.id)}
-                    className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                    className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer mt-0.5 flex-shrink-0"
                   />
-                  <label
-                    htmlFor={`item-${item.id}`}
-                    className={`ml-3 text-gray-700 cursor-pointer ${item.checked ? 'line-through text-gray-400' : ''}`}
-                  >
-                    {item.name} - <span className="text-sm text-gray-500">{item.quantity}</span>
-                  </label>
+                  {editingId === item.id ? (
+                    <form onSubmit={(e) => handleSaveEdit(e, item.id)} className="flex-1 grid gap-2 sm:grid-cols-3">
+                      <input
+                        type="text"
+                        value={editItem.name}
+                        onChange={e => setEditItem(prev => ({ ...prev, name: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-green-500 focus:border-green-500 sm:col-span-1"
+                        placeholder="Nome"
+                        required
+                      />
+                      <input
+                        type="text"
+                        value={editItem.quantity}
+                        onChange={e => setEditItem(prev => ({ ...prev, quantity: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-green-500 focus:border-green-500 sm:col-span-1"
+                        placeholder="Quantidade"
+                        required
+                      />
+                      <select
+                        value={editItem.category}
+                        onChange={e => setEditItem(prev => ({ ...prev, category: e.target.value as Category }))}
+                        className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-green-500 focus:border-green-500 sm:col-span-1"
+                      >
+                        {CATEGORY_OPTIONS.map(option => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex gap-1 sm:col-span-3">
+                        <button
+                          type="submit"
+                          className="flex-1 bg-green-600 text-white text-xs px-2 py-1 rounded hover:bg-green-700 transition-colors"
+                        >
+                          Salvar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelEdit}
+                          className="flex-1 bg-gray-300 text-gray-700 text-xs px-2 py-1 rounded hover:bg-gray-400 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <label
+                        htmlFor={`item-${item.id}`}
+                        className={`flex-1 text-gray-700 cursor-pointer ${item.checked ? 'line-through text-gray-400' : ''}`}
+                      >
+                        <span className="font-medium">{item.name}</span> - <span className="text-sm text-gray-500">{item.quantity}</span>
+                      </label>
+                      <div className="flex gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => handleStartEdit(item)}
+                          className="text-blue-600 hover:text-blue-800 text-sm px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                          title="Editar"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleDeleteItem(item.id)}
+                          className="text-red-600 hover:text-red-800 text-sm px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                          title="Remover"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
