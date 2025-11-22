@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { LoginView } from './components/LoginView';
+import { RegisterView } from './components/RegisterView';
 import { PlannerView } from './components/PlannerView';
 import { InventoryView } from './components/InventoryView';
 import { RecipesView } from './components/RecipesView';
@@ -14,9 +15,10 @@ import { storageService } from './services/storageService';
 import { authService, type User } from './services/authService';
 
 const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | { username: string } | null>(() => {
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
     return authService.getCurrentUser();
   });
+  const [authView, setAuthView] = useState<'login' | 'register'>('login');
   const [activeView, setActiveView] = useState<View>('planner');
   const [inventory, setInventory] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -52,13 +54,13 @@ const App: React.FC = () => {
   useEffect(() => {
     const loadUserData = async () => {
       if (currentUser && !dataLoaded) {
-        console.log('🔄 Iniciando carregamento de dados para:', 'uid' in currentUser ? currentUser.email : currentUser.username);
+        console.log('🔄 Iniciando carregamento de dados para:', currentUser.email);
         setIsLoading(true);
         try {
-          const identifier = 'uid' in currentUser ? currentUser.uid : currentUser.username;
+          const identifier = currentUser.uid;
           const userData = await storageService.loadUserData(
             identifier,
-            'uid' in currentUser ? currentUser : null
+            currentUser
           );
           
           if (userData) {
@@ -101,15 +103,14 @@ const App: React.FC = () => {
     const saveData = async () => {
       if (currentUser && dataLoaded) {
         try {
-          const userForStorage = 'uid' in currentUser ? currentUser : null;
           await storageService.saveUserData({
-            userId: 'uid' in currentUser ? currentUser.uid : undefined,
-            username: 'username' in currentUser ? currentUser.username : currentUser.email || currentUser.displayName || undefined,
+            userId: currentUser.uid,
+            username: currentUser.email || currentUser.displayName,
             inventory,
             mealPlan,
             recipes,
             tips,
-          }, userForStorage);
+          }, currentUser);
         } catch (error) {
           console.error('Erro ao salvar dados:', error);
         }
@@ -244,7 +245,7 @@ const App: React.FC = () => {
     setTips(prev => [...prev, tip]);
   };
 
-  const handleLogin = async (user: User | { username: string }) => {
+  const handleLogin = async (user: User) => {
     setCurrentUser(user);
     // Resetar flag para forçar recarregamento dos dados
     setDataLoaded(false);
@@ -253,7 +254,7 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     if (window.confirm('Tem certeza que deseja sair? Seus dados serão mantidos.')) {
       try {
-        if ('uid' in currentUser && currentUser.uid) {
+        if (currentUser) {
           await authService.signOut();
         }
         setCurrentUser(null);
@@ -279,8 +280,8 @@ const App: React.FC = () => {
     if (window.confirm('Tem certeza que deseja limpar todos os dados? Esta ação não pode ser desfeita!')) {
       if (currentUser) {
         try {
-          const identifier = 'uid' in currentUser ? currentUser.uid : currentUser.username;
-          const userForStorage = 'uid' in currentUser ? currentUser : null;
+          const identifier = currentUser.uid;
+          const userForStorage = currentUser;
           await storageService.clearUserData(identifier, userForStorage);
           
           // Recarregar dados iniciais
@@ -298,6 +299,9 @@ const App: React.FC = () => {
     }
   };
   
+  const handleSwitchToRegister = () => setAuthView('register');
+  const handleSwitchToLogin = () => setAuthView('login');
+
   const renderView = () => {
     // Special handling for diet view as its loading is separate
     if (activeView === 'diet') {
@@ -342,9 +346,12 @@ const App: React.FC = () => {
     }
   };
 
-  // Se não estiver logado, mostrar tela de login
+  // Se não estiver logado, mostrar tela de login ou registro
   if (!currentUser) {
-    return <LoginView onLogin={handleLogin} />;
+    if (authView === 'register') {
+      return <RegisterView onRegisterSuccess={handleSwitchToLogin} onSwitchToLogin={handleSwitchToLogin} />;
+    }
+    return <LoginView onLogin={handleLogin} onSwitchToRegister={handleSwitchToRegister} />;
   }
 
   return (
@@ -358,12 +365,12 @@ const App: React.FC = () => {
             </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <div className="flex items-center gap-2 text-sm sm:text-base text-gray-600 bg-white px-3 py-2 rounded-lg shadow-sm">
-                {'photoURL' in currentUser && currentUser.photoURL ? (
+                {currentUser.photoURL ? (
                   <img src={currentUser.photoURL} alt="Avatar" className="w-6 h-6 rounded-full" />
                 ) : (
                   <span>👤</span>
                 )}
-                <span>{'displayName' in currentUser ? currentUser.displayName || currentUser.email : currentUser.username}</span>
+                <span>{currentUser.displayName || currentUser.email}</span>
               </div>
               <button
                 onClick={handleClearData}

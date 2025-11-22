@@ -124,3 +124,4 @@ VITE_FIREBASE_APP_ID=seu-app-id
 - Certifique-se de que o usuário está autenticado
 - Verifique os logs do console do navegador para mais detalhes
 
+

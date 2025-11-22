@@ -103,3 +103,4 @@ Se nada funcionar:
 3. Certifique-se de que todas as variáveis estão corretas
 4. Tente fazer login por nome de usuário (deve funcionar sempre)
 
+

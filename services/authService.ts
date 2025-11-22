@@ -2,7 +2,10 @@ import {
   signInWithPopup, 
   signOut as firebaseSignOut,
   onAuthStateChanged,
-  User as FirebaseUser
+  User as FirebaseUser,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile
 } from 'firebase/auth';
 import { auth, googleProvider, isFirebaseConfigured } from './firebaseConfig';
 
@@ -14,6 +17,47 @@ export interface User {
 }
 
 export const authService = {
+  registerWithEmailAndPassword: async (email, password, name) => {
+    if (!isFirebaseConfigured() || !auth) {
+      throw new Error('Firebase não está configurado. Por favor, configure as variáveis de ambiente no arquivo .env.local com suas credenciais do Firebase.');
+    }
+  
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      const user = result.user;
+      await updateProfile(user, { displayName: name });
+      return {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+      };
+    } catch (error) {
+      console.error('Erro ao registrar com email e senha:', error);
+      throw error;
+    }
+  },
+
+  signInWithEmailAndPassword: async (email, password) => {
+    if (!isFirebaseConfigured() || !auth) {
+      throw new Error('Firebase não está configurado. Por favor, configure as variáveis de ambiente no arquivo .env.local com suas credenciais do Firebase.');
+    }
+  
+    try {
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      const user = result.user;
+      return {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+      };
+    } catch (error) {
+      console.error('Erro ao fazer login com email e senha:', error);
+      throw error;
+    }
+  },
+  
   // Login com Google
   signInWithGoogle: async (): Promise<User | null> => {
     if (!isFirebaseConfigured() || !auth) {

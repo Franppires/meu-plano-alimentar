@@ -2,18 +2,20 @@ import React, { useState } from 'react';
 import { authService, type User } from '../services/authService';
 
 interface LoginViewProps {
-  onLogin: (user: User | { username: string }) => void;
+  onLogin: (user: User) => void;
+  onSwitchToRegister: () => void;
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
-  const [username, setUsername] = useState('');
+export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onSwitchToRegister }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const handleGoogleLogin = async () => {
     if (!authService.isConfigured()) {
-      setError('Login com Google não está configurado. Use o login por nome de usuário.');
+      setError('Login com Google não está configurado. Use o login por email e senha.');
       return;
     }
 
@@ -33,22 +35,28 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedUsername = username.trim();
     
-    if (!trimmedUsername) {
-      setError('Por favor, insira um nome de usuário');
+    if (!email || !password) {
+      setError('Por favor, preencha o email e a senha');
       return;
     }
 
-    if (trimmedUsername.length < 3) {
-      setError('O nome de usuário deve ter pelo menos 3 caracteres');
-      return;
-    }
-
+    setIsLoading(true);
     setError('');
-    onLogin({ username: trimmedUsername });
+
+    try {
+      const user = await authService.signInWithEmailAndPassword(email, password);
+      if (user) {
+        onLogin(user);
+      }
+    } catch (err: any) {
+      console.error('Erro no login:', err);
+      setError(err.message || 'Erro ao fazer login. Verifique suas credenciais.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -65,25 +73,37 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="username" className="block text-sm font-semibold text-gray-700 mb-2">
-              Nome de Usuário
+            <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+              Email
             </label>
             <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => {
-                setUsername(e.target.value);
-                setError('');
-              }}
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
-              placeholder="Digite seu nome de usuário"
+              placeholder="Digite seu email"
               autoFocus
             />
-            {error && (
-              <p className="mt-2 text-sm text-red-600">{error}</p>
-            )}
           </div>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
+              Senha
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+              placeholder="Digite sua senha"
+            />
+          </div>
+
+          {error && (
+            <p className="mt-2 text-sm text-red-600">{error}</p>
+          )}
 
           <button
             type="submit"
@@ -93,6 +113,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             {isLoading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
+
+        <p className="mt-4 text-center text-sm">
+          Não tem uma conta?{' '}
+          <button onClick={onSwitchToRegister} className="font-medium text-green-600 hover:text-green-500">
+            Criar conta
+          </button>
+        </p>
 
         {authService.isConfigured() && (
           <>
